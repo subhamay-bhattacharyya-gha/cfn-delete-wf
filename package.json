@@ -1,7 +1,7 @@
 {
   "name": "cfn-delete-wf",
   "version": "0.0.0",
-  "description": "A sample project using semantic release with custom plugins.",
+  "description": "GitHub Action workflow for deleting CloudFormation stacks",
   "main": "index.js",
   "scripts": {
     "release": "semantic-release"
