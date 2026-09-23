@@ -17,23 +17,6 @@ on:
         type: string
         default: ""
 
-      # AWS Configuration
-      aws-region:
-        description: "AWS region for CloudFormation deployment"
-        required: true
-        type: string
-        default: "us-east-1"
-
-      aws-account-id:
-        description: "AWS account ID for OIDC role assumption"
-        required: true
-        type: string
-
-      oidc-role-name:
-        description: "IAM role name for OIDC authentication"
-        required: true
-        type: string
-
       # Stack Configuration
       stack-name:
         description: "CloudFormation stack name"
@@ -58,6 +41,11 @@ jobs:
     name: Delete Stack
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
+      CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}
     permissions:
       id-token: write
       contents: read
@@ -65,8 +53,8 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6.2.4
         with:
-          role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.oidc-role-name }}
-          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.AWS_OIDC_ROLE_NAME }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Prepare Stack Name
         id: prepare-stack-name
@@ -84,7 +72,7 @@ jobs:
         shell: bash
         run: |
           STACK_NAME="${{ steps.prepare-stack-name.outputs.stack-name }}"
-          REGION="${{ inputs.aws-region }}"
+          REGION="${{ env.AWS_REGION }}"
 
           echo "🔍 Checking if stack exists: $STACK_NAME"
 
@@ -106,9 +94,9 @@ jobs:
             echo "| Parameter | Value |"
             echo "|-----------|-------|"
             echo "| Environment | ${{ inputs.environment }} |"
-            echo "| AWS Region | ${{ inputs.aws-region }} |"
-            echo "| AWS Account ID | ${{ inputs.aws-account-id }} |"
-            echo "| OIDC Role Name | ${{ inputs.oidc-role-name }} |"
+            echo "| AWS Region | ${{ env.AWS_REGION }} |"
+            echo "| AWS Account ID | ${{ env.AWS_ACCOUNT_ID }} |"
+            echo "| OIDC Role Name | ${{ env.AWS_OIDC_ROLE_NAME }} |"
             echo "| Stack Name (Input) | ${{ inputs.stack-name != '' && inputs.stack-name || '(empty - using repository name)' }} |"
             echo "| Concurrency Group | ${{ inputs.concurrency-group != '' && inputs.concurrency-group || '(empty - using default)' }} |"
             echo ""
@@ -132,5 +120,5 @@ jobs:
         uses: subhamay-bhattacharyya-gha/cfn-delete-action@feature/GHA-0001-initial-release-cloudfo
         with:
           stack-name: ${{ steps.prepare-stack-name.outputs.stack-name }}
-          aws-region: ${{ inputs.aws-region }}
+          aws-region: ${{ env.AWS_REGION }}
         continue-on-error: true
