@@ -117,7 +117,7 @@ jobs:
           } >> $GITHUB_STEP_SUMMARY
 
       - name: Delete CloudFormation Stack
-        uses: subhamay-bhattacharyya-gha/cfn-delete-action@feature/GHA-0001-initial-release-cloudfo
+        uses: subhamay-bhattacharyya-gha/cfn-delete-action@v1.0.0
         with:
           stack-name: ${{ steps.prepare-stack-name.outputs.stack-name }}
           aws-region: ${{ env.AWS_REGION }}
