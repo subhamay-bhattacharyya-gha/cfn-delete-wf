@@ -1,0 +1,124 @@
+name: Delete CloudFormation Stack
+
+on:
+  workflow_call:
+    inputs:
+      # GitHub Environment (ci, devl, test, prod)
+      environment:
+        description: "GitHub environment name for accessing environment-scoped variables. Must be one of: ci, devl, test, prod."
+        required: false
+        type: string
+        default: "ci"
+
+      # Concurrency group name (optional - allows caller to customize)
+      concurrency-group:
+        description: "Concurrency group name for workflow runs"
+        required: false
+        type: string
+        default: ""
+
+      # Stack Configuration
+      stack-name:
+        description: "CloudFormation stack name"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  id-token: write
+  contents: read
+  actions: write
+
+concurrency:
+  group: ${{ inputs.concurrency-group || format('cfn-deploy-{0}-{1}', inputs.environment, github.ref) }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  check-stack-exists:
+    name: Delete Stack
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
+      CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v6.2.4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.AWS_OIDC_ROLE_NAME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Prepare Stack Name
+        id: prepare-stack-name
+        shell: bash
+        run: |
+          STACK_NAME="${{ inputs.stack-name }}"
+          if [[ -z "$STACK_NAME" ]]; then
+            STACK_NAME="${{ github.event.repository.name }}"
+          fi
+          echo "stack-name=${STACK_NAME}" >> $GITHUB_OUTPUT
+          echo "✅ Final stack name: ${STACK_NAME}"
+
+      - name: Check Stack Exists
+        id: check-stack
+        shell: bash
+        run: |
+          STACK_NAME="${{ steps.prepare-stack-name.outputs.stack-name }}"
+          REGION="${{ env.AWS_REGION }}"
+
+          echo "🔍 Checking if stack exists: $STACK_NAME"
+
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" 2>/dev/null; then
+            echo "stack-exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Stack exists: $STACK_NAME"
+          else
+            echo "stack-exists=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  Stack does not exist: $STACK_NAME"
+          fi
+
+      - name: Output Debug Information to Summary
+        shell: bash
+        run: |
+          {
+            echo "## 📋 CloudFormation Stack Check - Debug Information"
+            echo ""
+            echo "### Workflow Inputs"
+            echo "| Parameter | Value |"
+            echo "|-----------|-------|"
+            echo "| Environment | ${{ inputs.environment }} |"
+            echo "| AWS Region | ${{ env.AWS_REGION }} |"
+            echo "| AWS Account ID | ${{ env.AWS_ACCOUNT_ID }} |"
+            echo "| OIDC Role Name | ${{ env.AWS_OIDC_ROLE_NAME }} |"
+            echo "| Stack Name (Input) | ${{ inputs.stack-name != '' && inputs.stack-name || '(empty - using repository name)' }} |"
+            echo "| Concurrency Group | ${{ inputs.concurrency-group != '' && inputs.concurrency-group || '(empty - using default)' }} |"
+            echo ""
+            echo "### Computed Values"
+            echo "| Parameter | Value |"
+            echo "|-----------|-------|"
+            echo "| Final Stack Name | ${{ steps.prepare-stack-name.outputs.stack-name }} |"
+            echo "| Stack Exists | ${{ steps.check-stack.outputs.stack-exists }} |"
+            echo ""
+            echo "### GitHub Context"
+            echo "| Parameter | Value |"
+            echo "|-----------|-------|"
+            echo "| Repository | ${{ github.repository }} |"
+            echo "| Repository Name | ${{ github.event.repository.name }} |"
+            echo "| Ref | ${{ github.ref }} |"
+            echo "| Ref Name | ${{ github.ref_name }} |"
+            echo "| Run ID | ${{ github.run_id }} |"
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Delete CloudFormation Stack
+        uses: subhamay-bhattacharyya-gha/cfn-delete-action@v1.0.0
+        with:
+          stack-name: ${{ steps.prepare-stack-name.outputs.stack-name }}
+          aws-region: ${{ env.AWS_REGION }}
+        continue-on-error: true
