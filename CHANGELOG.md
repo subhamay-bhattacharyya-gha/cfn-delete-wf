@@ -1,3 +1,10 @@
+# 1.0.0 (2026-09-24)
+
+
+### Features
+
+* Update CloudFormation stack deletion workflow and README for clarity and functionality ([f72d580](https://github.com/subhamay-bhattacharyya-gha/cfn-delete-wf/commit/f72d580588cfacc75c94eb6321600243949db8fb))
+
 ## [1.1.2](https://github.com/subhamay-bhattacharyya-gha/cfn-delete-wf/compare/v1.1.1...v1.1.2) (2025-05-21)
 
 
